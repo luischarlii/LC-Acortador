@@ -2,7 +2,7 @@
   "id": "./",
   "name": "LC Acortador Web",
   "short_name": "Acorta Links",
-  "description": "Estimacion para el calculo de pension 40",
+  "description": "Acorta tus direcciones web",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
