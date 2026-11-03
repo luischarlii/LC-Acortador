@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Acortador</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Acortador">
+<meta name="theme-color" content="#059669">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #111827; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #059669; --card: #f3f4f6; --err: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b0f19; --fg: #f3f4f6; --muted: #9ca3af; --line: #1f2937;
+            --accent: #34d399; --card: #151b2b; --err: #f87171; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    max-width: 560px; margin: 0 auto;
+  }
+  h1 { margin: 0 0 14px; font-size: 28px; }
+  h2 { margin: 24px 0 8px; font-size: 16px; color: var(--muted); font-weight: 600; }
+  .field { display: flex; gap: 8px; margin-bottom: 8px; }
+  input {
+    flex: 1; min-width: 0; padding: 13px 14px; font-size: 16px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg); outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button { font: inherit; cursor: pointer; }
+  .go {
+    width: 100%; padding: 14px; border: 0; border-radius: 12px; font-weight: 700;
+    background: var(--accent); color: #fff; margin-top: 4px;
+  }
+  .go:disabled { opacity: .6; }
+  .small {
+    padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
+    background: var(--card); color: var(--fg); white-space: nowrap;
+  }
+  .hint { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .err { color: var(--err); font-size: 14px; min-height: 1.2em; margin: 8px 0 0; }
+
+  #result {
+    margin-top: 20px; padding: 16px; border-radius: 16px; background: var(--card);
+    border: 1px solid var(--line);
+  }
+  #short { font-size: 26px; font-weight: 800; color: var(--accent); word-break: break-all; }
+  #stats { font-size: 13px; color: var(--muted); margin: 6px 0 12px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions button {
+    padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--fg); font-size: 14px;
+  }
+
+  .item {
+    display: flex; align-items: center; gap: 8px; padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .item .txt { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: inherit; padding: 0; }
+  .item .s { font-weight: 700; color: var(--accent); }
+  .item .l { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .x { background: none; border: 0; color: var(--muted); font-size: 18px; padding: 6px 8px; }
+  .link-btn { background: none; border: 0; color: var(--muted); font-size: 13px; padding: 10px 0; text-decoration: underline; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%); background: var(--fg); color: var(--bg);
+    padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0;
+    pointer-events: none; transition: opacity .2s;
+  }
+  #toast.show { opacity: 1; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>Acortador</h1>
+
+<div class="field">
+  <input id="url" type="url" inputmode="url" placeholder="Pega el enlace largo" autocomplete="off" autocapitalize="none" autocorrect="off">
+  <button id="paste" class="small" aria-label="Pegar">📋 Pegar</button>
+</div>
+<input id="alias" placeholder="Alias propio (opcional, 5 a 30 caracteres)" autocomplete="off" autocapitalize="none" autocorrect="off" style="width:100%">
+<div class="hint">Sin alias, el enlace queda con unos 6 caracteres al azar.</div>
+<button id="go" class="go">Acortar</button>
+<div id="msg" class="err"></div>
+
+<div id="result" hidden>
+  <div id="short"></div>
+  <div id="stats"></div>
+  <div class="actions">
+    <button id="copy">Copiar</button>
+    <button id="copy-min">Copiar sin https://</button>
+    <button id="share">Compartir</button>
+  </div>
+</div>
+
+<div id="history-box" hidden>
+  <h2>Recientes</h2>
+  <div id="history"></div>
+  <button id="clear" class="link-btn">Borrar historial</button>
+</div>
+
+<div class="hint" style="margin-top:28px">
+  Los enlaces los crea el servicio gratuito is.gd, y cualquiera que tenga el enlace corto puede abrirlo.
+  No lo uses con enlaces privados (por ejemplo, con claves o sesiones dentro).
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const HIST_KEY = 'acortador:hist';
+let hist = loadHist();
+let cur = null;
+
+function loadHist() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; }
+  catch (e) { return []; }
+}
+function saveHist() {
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, 20))); } catch (e) {}
+}
+
+function msg(t) { $('msg').textContent = t || ''; }
+
+let toastTimer;
+function toast(t) {
+  const el = $('toast');
+  el.textContent = t;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+// Acepta "ejemplo.com/ruta" y le pone https:// si falta
+function normalize(raw) {
+  let u = (raw || '').trim();
+  if (!u) return null;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = 'https://' + u;
+  try {
+    const x = new URL(u);
+    if (!/^https?:$/.test(x.protocol) || !x.hostname.includes('.')) return null;
+    return u;
+  } catch (e) { return null; }
+}
+
+// is.gd responde con JSON; si el navegador bloquea la lectura directa, se usa JSONP
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    const t = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 10000);
+    function cleanup() { clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); resolve(d); };
+    s.onerror = () => { cleanup(); reject(new Error('network')); };
+    s.src = url + '&callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+
+async function callApi(long, alias) {
+  const q = new URLSearchParams({ format: 'json', url: long });
+  if (alias) q.set('shorturl', alias);
+  const url = 'https://is.gd/create.php?' + q;
+  try {
+    const r = await fetch(url);
+    return await r.json();
+  } catch (e) {
+    return await jsonp(url);
+  }
+}
+
+async function shorten() {
+  msg('');
+  const long = normalize($('url').value);
+  if (!long) { msg('Escribe un enlace válido, por ejemplo https://ejemplo.com'); return; }
+  const alias = $('alias').value.trim();
+  if (alias && !/^[A-Za-z0-9_]{5,30}$/.test(alias)) {
+    msg('El alias debe tener de 5 a 30 letras, números o guion bajo.');
+    return;
+  }
+  $('go').disabled = true;
+  $('go').textContent = 'Acortando…';
+  try {
+    const d = await callApi(long, alias);
+    if (d && d.shorturl) showResult(d.shorturl, long);
+    else msg((d && d.errormessage) || 'No se pudo acortar el enlace.');
+  } catch (e) {
+    msg('No hay conexión con el servicio. Intenta de nuevo.');
+  } finally {
+    $('go').disabled = false;
+    $('go').textContent = 'Acortar';
+  }
+}
+
+function showResult(short, long) {
+  cur = { short, long };
+  $('short').textContent = short.replace(/^https:\/\//, '');
+  const saved = Math.round((1 - short.length / long.length) * 100);
+  $('stats').textContent = saved > 0
+    ? `De ${long.length} a ${short.length} caracteres (−${saved} %)`
+    : `${short.length} caracteres`;
+  $('result').hidden = false;
+
+  hist = hist.filter(h => h.short !== short);
+  hist.unshift({ short, long });
+  saveHist();
+  renderHist();
+}
+
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+  }
+  toast(label);
+}
+
+function renderHist() {
+  const box = $('history');
+  box.innerHTML = '';
+  $('history-box').hidden = !hist.length;
+  hist.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'item';
+
+    const txt = document.createElement('button');
+    txt.className = 'txt';
+    const s = document.createElement('div');
+    s.className = 's';
+    s.textContent = h.short.replace(/^https:\/\//, '');
+    const l = document.createElement('div');
+    l.className = 'l';
+    l.textContent = h.long;
+    txt.append(s, l);
+    txt.addEventListener('click', () => copyText(h.short, 'Enlace copiado'));
+
+    const x = document.createElement('button');
+    x.className = 'x';
+    x.textContent = '✕';
+    x.setAttribute('aria-label', 'Quitar');
+    x.addEventListener('click', () => {
+      hist = hist.filter(i => i.short !== h.short);
+      saveHist();
+      renderHist();
+    });
+
+    row.append(txt, x);
+    box.appendChild(row);
+  });
+}
+
+$('go').addEventListener('click', shorten);
+$('url').addEventListener('keydown', e => { if (e.key === 'Enter') shorten(); });
+$('alias').addEventListener('keydown', e => { if (e.key === 'Enter') shorten(); });
+
+$('paste').addEventListener('click', async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    $('url').value = t.trim();
+  } catch (e) {
+    toast('Mantén pulsado el campo y elige Pegar');
+  }
+});
+
+$('copy').addEventListener('click', () => cur && copyText(cur.short, 'Enlace copiado'));
+$('copy-min').addEventListener('click', () =>
+  cur && copyText(cur.short.replace(/^https:\/\//, ''), 'Copiado sin https://'));
+$('share').addEventListener('click', async () => {
+  if (!cur) return;
+  try {
+    if (navigator.share) await navigator.share({ url: cur.short });
+    else copyText(cur.short, 'Enlace copiado');
+  } catch (e) { /* cancelado */ }
+});
+$('clear').addEventListener('click', () => { hist = []; saveHist(); renderHist(); });
+
+renderHist();
+</script>
+</body>
+</html>
